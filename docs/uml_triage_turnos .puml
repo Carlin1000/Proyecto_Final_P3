@@ -1,0 +1,120 @@
+@startuml
+title Sistema de turnos con priorización por triage - Diagrama de clases preliminar
+skinparam classAttributeIconSize 0
+skinparam dpi 150
+skinparam nodesep 50
+skinparam ranksep 70
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+package "Módulo Pacientes" {
+  abstract class Persona {
+    -cedula: String
+    -nombre: String
+    -edad: int
+  }
+  class Paciente {
+    -telefono: String
+    -fechaRegistro: LocalDate
+  }
+  class GestorPacientes {
+    -indicePorCedula: HashMap<String, Paciente>
+    +registrar(p: Paciente): void
+    +buscarPorCedula(cedula: String): Paciente
+    +actualizar(p: Paciente): void
+    +listarOrdenado(): List<Paciente>
+    +filtrar(criterio: Predicate<Paciente>): List<Paciente>
+  }
+}
+
+package "Módulo Triage" {
+  enum NivelTriage {
+    RESUCITACION
+    EMERGENCIA
+    URGENCIA
+    MENOR
+    NO_URGENTE
+  }
+  class SignosVitales {
+    -frecuenciaCardiaca: int
+    -presionSistolica: int
+    -temperatura: double
+    -saturacionO2: int
+  }
+  class ClasificadorTriage {
+    +clasificar(s: SignosVitales): NivelTriage
+    +reclasificar(t: Turno, s: SignosVitales): NivelTriage
+  }
+}
+
+package "Módulo Cola de atención" {
+  class Turno {
+    -id: int
+    -nivel: NivelTriage
+    -horaIngreso: LocalDateTime
+    -ordenLlegada: long
+    -estado: String
+    +compareTo(otro: Turno): int
+  }
+  class ColaAtencion {
+    -cola: PriorityQueue<Turno>
+    -contadorLlegada: long
+    +encolar(t: Turno): void
+    +atender(): Turno
+    +reclasificar(t: Turno, n: NivelTriage): void
+    +aplicarEnvejecimiento(umbralMin: int): void
+  }
+}
+
+package "Módulo Médicos y consultorios" {
+  class Medico {
+    -especialidad: String
+    -disponible: boolean
+    +estaDisponible(): boolean
+  }
+  class Consultorio {
+    -numero: int
+    -ocupado: boolean
+    +asignar(m: Medico): void
+    +liberar(): void
+  }
+  class GestorConsultorios {
+    -disponiblesPorEspecialidad: HashMap<String, ArrayDeque<Consultorio>>
+    +asignarDisponible(especialidad: String): Consultorio
+    +listarDisponibles(): List<Consultorio>
+  }
+}
+
+package "Módulo Reportes" {
+  class Atencion {
+    -horaInicio: LocalDateTime
+    -horaFin: LocalDateTime
+    +tiempoEspera(): long
+  }
+  class GeneradorReportes {
+    +promedioEspera(): double
+    +atencionesPorNivel(): Map<NivelTriage, Integer>
+    +ranking(): List<Atencion>
+    +exportarCSV(ruta: String): void
+  }
+}
+
+Persona <|-- Paciente
+Persona <|-- Medico
+
+GestorPacientes o-- "0..*" Paciente
+Paciente "1" -- "0..*" Turno : genera >
+Turno "1" *-- "1" SignosVitales
+Turno --> "1" NivelTriage
+ColaAtencion "1" *-- "0..*" Turno
+ClasificadorTriage ..> SignosVitales
+ClasificadorTriage ..> NivelTriage
+
+Consultorio "0..1" -- "0..1" Medico : ocupado por >
+GestorConsultorios "1" o-- "1..*" Consultorio
+
+Atencion "0..1" --> "1" Turno
+Atencion "0..*" --> "1" Medico
+Atencion "0..*" --> "1" Consultorio
+GeneradorReportes "1" o-- "0..*" Atencion
+@enduml
